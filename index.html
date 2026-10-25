@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>صوت مصري - تحويل النص إلى كلام</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --card2:#1f232c; --line:#2b303b;
+    --text:#eef0f4; --muted:#9aa3b2; --accent:#f5b53d; --accent2:#e8893a; --ok:#47c58a; --err:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",system-ui,sans-serif;line-height:1.6}
+  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+  header{text-align:center;padding:18px 0 8px}
+  header h1{margin:0;font-size:1.9rem}
+  header h1 span{color:var(--accent)}
+  header p{margin:6px 0 0;color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px}
+  .card h2{margin:0 0 12px;font-size:1.1rem;color:var(--accent)}
+  label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:4px}
+  input,select,textarea{width:100%;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+  textarea{min-height:170px;resize:vertical;font-size:1.05rem}
+  .row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .tabs{display:flex;gap:8px;margin-bottom:6px}
+  .tab{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);cursor:pointer;font:inherit}
+  .tab.on{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:700}
+  .personas{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .persona{background:var(--card2);border:2px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;text-align:right;color:var(--text);font:inherit}
+  .persona:hover{border-color:#47506a}
+  .persona.on{border-color:var(--accent);background:#2a2619}
+  .persona b{display:block}
+  .persona small{color:var(--muted);display:block}
+  .tag{display:inline-block;font-size:.72rem;background:#2e3442;color:#cfd5e2;border-radius:20px;padding:1px 9px;margin-top:6px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  button.act{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;font:inherit}
+  button.act:hover{border-color:var(--accent)}
+  button.main{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#1a1a1a;border:0;font-weight:800;padding:12px 22px;font-size:1.05rem}
+  button:disabled{opacity:.5;cursor:wait}
+  .status{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--card2);display:none}
+  .status.show{display:block}
+  .status.err{color:var(--err);border:1px solid #5a2a2a}
+  .status.ok{color:var(--ok);border:1px solid #1f4f3a}
+  audio{width:100%;margin-top:10px}
+  .spk{display:grid;gap:10px;grid-template-columns:140px 1fr;align-items:end;margin-bottom:8px}
+  .hint{font-size:.82rem;color:var(--muted);margin-top:6px}
+  details summary{cursor:pointer;color:var(--muted)}
+  .hidden{display:none}
+  @media(max-width:560px){.spk{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎙️ <span>صوت مصري</span> — تحويل النص إلى كلام</h1>
+    <p>لهجات مصرية فقط: قاهرية، إسكندرانية، صعيدية، ريفية، أطفال، معلّقين وراوي</p>
+  </header>
+
+  <div class="card">
+    <h2>الإعدادات</h2>
+    <div class="row">
+      <div>
+        <label for="apiKey">مفتاح Gemini API</label>
+        <input id="apiKey" type="password" placeholder="الصق المفتاح هنا" autocomplete="off">
+      </div>
+      <div>
+        <label for="ttsModel">موديل الصوت الأساسي</label>
+        <input id="ttsModel" value="gemini-3.8-flash-tts" dir="ltr">
+      </div>
+      <div>
+        <label for="ttsFallback">موديل الصوت الاحتياطي</label>
+        <input id="ttsFallback" value="gemini-3.8-flash-lite-tts" dir="ltr">
+      </div>
+      <div>
+        <label for="textModel">موديل النص (للتشكيل والتحسين)</label>
+        <input id="textModel" value="gemini-3.8-flash" dir="ltr">
+      </div>
+    </div>
+    <p class="hint">المفتاح بيتحفظ في متصفحك بس (localStorage) وبيروح لـ Google مباشرة. لو اسم موديل مش شغال عندك غيّره من هنا.</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab on" id="tabSingle">متحدث واحد</button>
+      <button class="tab" id="tabDialogue">حوار</button>
+    </div>
+
+    <div id="singleBox">
+      <h2>اختار الشخصية</h2>
+      <div class="personas" id="personas"></div>
+    </div>
+
+    <div id="dialogueBox" class="hidden">
+      <h2>المتحدثين</h2>
+      <div id="speakers"></div>
+      <div class="btns"><button class="act" id="addSpk">+ أضف متحدث (لحد 4)</button></div>
+      <p class="hint">اكتب الحوار سطر لكل دور بالشكل: <b>الاسم: الكلام</b>. لو متحدثين اتنين بس بيتولد في طلب واحد، ولو أكتر بيتولد كل سطر لوحده ويتدمج.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>النص</h2>
+    <textarea id="text" placeholder="اكتب النص بالعامية المصرية هنا... مثال: إزيك يا صاحبي، عامل إيه النهاردة؟ يلا بينا نخرج نشرب شاي على النيل."></textarea>
+    <p class="hint">تقدر تكتب توجيهات زي (بحماس) أو [بهمس] أو توقيتات [00:12] وهتتحول لأسلوب أداء ومش هتتنطق. الوسوم &lt;laugh&gt; &lt;breath&gt; &lt;gasp&gt; بتفضل زي ما هي.</p>
+    <div class="btns">
+      <button class="act" data-enh="diacritics">✍️ تشكيل النص</button>
+      <button class="act" data-enh="vocal-tags">😄 إضافة وسوم مشاعر</button>
+      <button class="act" data-enh="masri">🇪🇬 تحويل لعامية مصرية</button>
+    </div>
+
+    <details style="margin-top:14px">
+      <summary>إعدادات الأداء</summary>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label for="speed">السرعة</label>
+          <select id="speed">
+            <option value="">عادية</option>
+            <option value="slow, relaxed and unhurried">بطيئة</option>
+            <option value="fast, lively and energetic">سريعة</option>
+          </select>
+        </div>
+        <div>
+          <label for="pitch">درجة الصوت</label>
+          <select id="pitch">
+            <option value="">عادية</option>
+            <option value="slightly higher pitch, bright">أرفع</option>
+            <option value="lower pitch, deep and warm">أغلظ</option>
+          </select>
+        </div>
+        <div>
+          <label for="extraStyle">أسلوب إضافي (إنجليزي أو عربي)</label>
+          <input id="extraStyle" placeholder="مثال: cheerful, like telling a funny story">
+        </div>
+      </div>
+    </details>
+
+    <div class="btns">
+      <button class="act main" id="go">🔊 ولّد الصوت</button>
+    </div>
+    <div class="status" id="status"></div>
+    <audio id="player" controls class="hidden"></audio>
+    <div class="btns"><button type="button" id="dlMp3" class="act main hidden">⬇️ تحميل MP3</button><a id="dl" class="act hidden" style="text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:10px;padding:10px 14px" download="masri-tts.wav">⬇️ تحميل WAV</a></div>
+  </div>
+</div>
+
+<script>
+/* ===== الشخصيات المصرية ===== */
+const EG = "Speak in authentic Egyptian Arabic colloquial (اللهجة المصرية العامية), natural Egyptian pronunciation (ج as hard g, ق as glottal stop where natural), never in formal Modern Standard Arabic";
+const PERSONAS = [
+  {id:"cairo_f", name:"سارة", dialect:"قاهرية", voice:"Kore", desc:"بنت قاهرية دافية وودودة",
+   style:`${EG}. Persona: Sara, a warm friendly young Cairene woman, relaxed and natural, light smile in the voice`},
+  {id:"cairo_m", name:"طارق", dialect:"قاهرية", voice:"Puck", desc:"شاب ابن بلد خفيف الدم",
+   style:`${EG}. Persona: Tarek, a witty energetic young Cairo guy, street-smart humor, casual fast-ish chat`},
+  {id:"upper_m", name:"منصور", dialect:"صعيدية", voice:"Fenrir", desc:"راجل صعيدي جهوري وقور",
+   style:`${EG}, specifically Upper Egypt Sa'idi dialect (لهجة صعيدية: ج as hard g, ق as g, words like "يا بوي" and "ياض"). Persona: Mansour, a proud deep-voiced Sa'idi man, firm, commanding and dignified`},
+  {id:"alex_m", name:"حكيم", dialect:"إسكندرانية", voice:"Charon", desc:"راجل إسكندراني هادي وحكيم",
+   style:`${EG}, specifically Alexandrian dialect (لهجة إسكندرانية with its sing-song coastal rhythm, words like "يا عم" and "إيه ده يا برنس"). Persona: Hakim, a calm wise older Alexandrian man, warm and humorous`},
+  {id:"rural_f", name:"ياسمين", dialect:"ريفية", voice:"Zephyr", desc:"ست فلاحة طيبة من الدلتا",
+   style:`${EG}, specifically Delta countryside (فلاحي) dialect with rural warmth. Persona: Yasmine, a kind motherly village woman, soft and caring, gentle storytelling tone`},
+  {id:"kid_m", name:"سيف اليزن", dialect:"طفل مصري", voice:"Puck", desc:"طفل صغير عمره 4 سنين",
+   style:`${EG}. Persona: Saif Al-Yazan, an adorable innocent 4-year-old Egyptian toddler boy, high-pitched sweet childlike playful voice, cute giggles`},
+  {id:"kid_f", name:"ميار", dialect:"طفلة مصرية", voice:"Zephyr", desc:"طفلة مرحة عمرها 5 سنين",
+   style:`${EG}. Persona: Mayar, a cheerful curious 5-year-old Egyptian little girl, bright high-pitched sweet voice, innocent delight`},
+  {id:"sport", name:"كابتن عادل", dialect:"معلق رياضي مصري", voice:"Fenrir", desc:"معلق كورة مصري متحمس",
+   style:`${EG}. Persona: Captain Adel, a passionate Egyptian football commentator, booming stadium energy, explosive excitement on goals, rising crescendos`},
+  {id:"host", name:"نادين", dialect:"مذيعة مصرية", voice:"Kore", desc:"مذيعة تلفزيون مصرية أنيقة",
+   style:`${EG}. Persona: Nadine, a polished Egyptian TV presenter, clear articulate delivery in educated Cairene speech, professional yet friendly`},
+  {id:"story", name:"عم صابر", dialect:"حكواتي مصري", voice:"Charon", desc:"راوي حكايات شعبي على القهوة",
+   style:`${EG}. Persona: Amm Saber, a traditional Egyptian storyteller (حكواتي) at a café, slow rich dramatic voice, pauses for suspense, folk charm`},
+  {id:"comic_a", name:"عم فتحي", dialect:"كوميدي ابن بلد", voice:"Puck", desc:"ابن بلد ساخر سريع البديهة",
+   style:`${EG}. Persona: Amm Fathy, a sharp-witted sarcastic baladi Cairo man, comic timing, playful teasing tone, expressive ups and downs, theatrical pauses before punchlines`},
+  {id:"comic_b", name:"الباشمهندس سامي", dialect:"أفندي كوميدي", voice:"Charon", desc:"أفندي متفاخر وكوميدي",
+   style:`${EG}. Persona: Eng. Sami, a pompous self-important office effendi, exaggerated dignified tone that keeps cracking into comedy, fussy and dramatic`},
+  {id:"omda", name:"العمدة", dialect:"عمدة ريفي", voice:"Fenrir", desc:"عمدة قرية مهيب وحازم",
+   style:`${EG}, rural Upper-Delta village elder dialect. Persona: the village Omda, an authoritative gravelly older man, slow weighty delivery, commanding respect, occasional dry humor`},
+  {id:"mama", name:"ماما نجوى", dialect:"أم مصرية", voice:"Kore", desc:"أم حنينة بتزعق بحب",
+   style:`${EG}. Persona: Mama Nagwa, a loving middle-aged Egyptian mother, warm fussing tone that jumps between scolding and tenderness, fast chatty rhythm`},
+  {id:"osta", name:"الأسطى حسن", dialect:"صنايعي شعبي", voice:"Fenrir", desc:"صنايعي شعبي جدع وبشوش",
+   style:`${EG}, working-class street dialect. Persona: Osta Hassan, a friendly rough-voiced craftsman, loud cheerful greeting style, lots of "يا باشا" and "يا ريس", easygoing`},
+  {id:"teta", name:"تيتة سعدية", dialect:"جدة مصرية", voice:"Zephyr", desc:"جدة طيبة بتحكي حواديت",
+   style:`${EG}. Persona: Teta Saadia, a gentle elderly Egyptian grandmother, soft slightly shaky warm voice, slow tender storytelling, blessing phrases`},
+];
+const $ = id => document.getElementById(id);
+let selected = PERSONAS[0].id;
+let mode = "single";
+
+/* ===== تخزين الإعدادات ===== */
+const LS = {get:k=>{try{return localStorage.getItem(k)}catch{return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+["apiKey","ttsModel","ttsFallback","textModel"].forEach(id=>{
+  const v = LS.get("masri_"+id); if(v) $(id).value = v;
+  $(id).addEventListener("change",()=>LS.set("masri_"+id,$(id).value.trim()));
+});
+
+/* ===== واجهة الشخصيات ===== */
+function personaOptions(sel){
+  return PERSONAS.map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${p.name} — ${p.dialect}</option>`).join("");
+}
+function renderPersonas(){
+  $("personas").innerHTML = PERSONAS.map(p=>`
+    <button type="button" class="persona ${p.id===selected?"on":""}" data-id="${p.id}">
+      <b>${p.name}</b><small>${p.desc}</small><span class="tag">${p.dialect}</span>
+    </button>`).join("");
+  $("personas").querySelectorAll(".persona").forEach(b=>b.onclick=()=>{selected=b.dataset.id;renderPersonas();});
+}
+renderPersonas();
+
+/* ===== المتحدثين في الحوار ===== */
+let speakers = [{name:"سارة",pid:"cairo_f"},{name:"طارق",pid:"cairo_m"}];
+function renderSpeakers(){
+  $("speakers").innerHTML = speakers.map((s,i)=>`
+    <div class="spk">
+      <div><label>الاسم</label><input data-i="${i}" data-k="name" value="${s.name}"></div>
+      <div><label>الشخصية</label><select data-i="${i}" data-k="pid">${personaOptions(s.pid)}</select></div>
+    </div>`).join("");
+  $("speakers").querySelectorAll("input,select").forEach(el=>el.onchange=()=>{speakers[el.dataset.i][el.dataset.k]=el.value.trim();});
+  $("addSpk").style.display = speakers.length>=4 ? "none":"";
+}
+renderSpeakers();
+$("addSpk").onclick=()=>{
+  if(speakers.length>=4) return;
+  const used = new Set(speakers.map(s=>s.pid));
+  const p = PERSONAS.find(p=>!used.has(p.id)) || PERSONAS[0];
+  speakers.push({name:p.name,pid:p.id}); renderSpeakers();
+};
+
+function setMode(m){
+  mode=m;
+  $("tabSingle").classList.toggle("on",m==="single");
+  $("tabDialogue").classList.toggle("on",m==="dialogue");
+  $("singleBox").classList.toggle("hidden",m!=="single");
+  $("dialogueBox").classList.toggle("hidden",m!=="dialogue");
+}
+$("tabSingle").onclick=()=>setMode("single");
+$("tabDialogue").onclick=()=>setMode("dialogue");
+
+/* ===== حالة العرض ===== */
+function status(msg,type=""){
+  const s=$("status"); s.className="status show "+type; s.textContent=msg;
+}
+function hideStatus(){ $("status").className="status"; }
+
+/* ===== تنظيف النص من التوجيهات ===== */
+const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+function cleanLine(raw, speaker){
+  const tones=[];
+  let s=String(raw||"");
+  s=s.replace(/[\[\(（](\d{1,2}:\d{2}(?::\d{2})?(?:\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?)?)[\]\)）]/g,"");
+  s=s.replace(/(^|\s)\d{1,2}:\d{2}(?::\d{2})?\s*[-–]?\s*/g,"$1");
+  s=s.replace(/[\[\(（]([^\]\)）\n]{1,40})[\]\)）]/g,(_,t)=>{tones.push(t.trim());return " ";});
+  if(speaker) s=s.replace(new RegExp("^\\s*"+esc(speaker)+"\\s*[:：\\-–]\\s*"),"");
+  s=s.replace(/[*_#`]+/g,"").replace(/[ \t]+/g," ").trim();
+  return {spoken:s, tones:tones.join(", ")};
+}
+function cleanScript(text){
+  const tones=[]; const out=[];
+  for(const line of text.split(/\r?\n/)){
+    if(/^\s*(#{1,6}\s|مشهد|المشهد|scene\b)/i.test(line)) continue;
+    const r=cleanLine(line); if(r.tones) tones.push(r.tones); if(r.spoken) out.push(r.spoken);
+  }
+  return {spoken:out.join("\n"), tones:tones.join(", ")};
+}
+
+/* ===== استدعاء Gemini ===== */
+const API="https://generativelanguage.googleapis.com/v1beta/models/";
+function apiKey(){ const k=$("apiKey").value.trim(); if(!k) throw new Error("حط مفتاح Gemini API الأول من الإعدادات."); LS.set("masri_apiKey",k); return k; }
+async function gem(model, body){
+  const r = await fetch(API+encodeURIComponent(model)+":generateContent",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-goog-api-key":apiKey()},
+    body:JSON.stringify(body)
+  });
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok){
+    const e = new Error(data?.error?.message || ("HTTP "+r.status));
+    e.status = r.status; e.quota = r.status===429 || /quota|RESOURCE_EXHAUSTED/i.test(JSON.stringify(data?.error||""));
+    throw e;
+  }
+  return data;
+}
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+
+async function ttsResilient(prompt, speechConfig){
+  const models=[$("ttsModel").value.trim(), $("ttsFallback").value.trim()].filter(Boolean);
+  let last=null;
+  for(const model of models){
+    const body={contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:["AUDIO"],speechConfig}};
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const d = await gem(model, body);
+        const part = d?.candidates?.[0]?.content?.parts?.find(p=>p.inlineData);
+        if(part?.inlineData?.data) return {b64:part.inlineData.data, mime:part.inlineData.mimeType||"", model};
+        last = new Error("الموديل ما رجّعش صوت.");
+      }catch(e){
+        last=e;
+        if(e.quota) break;            // الحصة خلصت: جرّب الموديل التالي
+        if(attempt===0) await sleep(600); // خطأ مؤقت: أعد المحاولة مرة
+      }
+    }
+  }
+  throw last || new Error("فشل توليد الصوت.");
+}
+
+/* ===== معالجة الصوت (PCM -> WAV) ===== */
+function b64ToBytes(b64){ const bin=atob(b64); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+function toPcm(res){
+  let u=b64ToBytes(res.b64);
+  if(u.length>44 && String.fromCharCode(u[0],u[1],u[2],u[3])==="RIFF") u=u.subarray(44);
+  return u;
+}
+function makeWav(pcmParts, sampleRate=24000){
+  const total = pcmParts.reduce((n,p)=>n+p.length,0);
+  const buf = new ArrayBuffer(44+total), v=new DataView(buf), w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,"RIFF"); v.setUint32(4,36+total,true); w(8,"WAVE"); w(12,"fmt ");
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  w(36,"data"); v.setUint32(40,total,true);
+  let off=44; for(const p of pcmParts){ new Uint8Array(buf,off,p.length).set(p); off+=p.length; }
+  return new Blob([buf],{type:"audio/wav"});
+}
+function silence(ms,sr=24000){ return new Uint8Array(Math.floor(sr*ms/1000)*2); }
+
+/* ===== تحميل MP3 ===== */
+let lastOut=null;
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("load "+src));document.head.appendChild(s);});}
+async function ensureLame(){
+  if(window.lamejs) return;
+  const urls=["https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js","https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"];
+  for(const u of urls){ try{ await loadScript(u); if(window.lamejs) return; }catch{} }
+  throw new Error("تعذر تحميل مكتبة تحويل MP3 (محتاجة إنترنت). حمّل WAV بدل كده.");
+}
+function encodeMp3(parts, sr=24000, kbps=128){
+  let total=0; for(const p of parts) total+=p.length;
+  const pcm=new Uint8Array(total); let o=0; for(const p of parts){pcm.set(p,o);o+=p.length;}
+  const samples=new Int16Array(pcm.buffer,0,Math.floor(total/2));
+  const enc=new lamejs.Mp3Encoder(1,sr,kbps); const chunks=[]; const step=1152;
+  for(let i=0;i<samples.length;i+=step){ const b=enc.encodeBuffer(samples.subarray(i,i+step)); if(b.length) chunks.push(b.slice()); }
+  const end=enc.flush(); if(end.length) chunks.push(end.slice());
+  return new Blob(chunks,{type:"audio/mpeg"});
+}
+$("dlMp3").onclick=async()=>{
+  if(!lastOut) return;
+  const b=$("dlMp3"); b.disabled=true;
+  try{
+    status("بجهّز ملف MP3...");
+    await ensureLame();
+    const blob=encodeMp3(lastOut.parts);
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="masri-tts.mp3";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    status("تم تحميل MP3 ✅","ok");
+  }catch(e){ status(e.message||"تعذر إنشاء MP3.","err"); }
+  finally{ b.disabled=false; }
+};
+
+/* ===== الكاش ===== */
+const cache = new Map();
+
+/* ===== بناء الأسلوب ===== */
+function perfStyle(extraTones=""){
+  return [
+    "Acoustic quality: professional broadcast studio recording, crystal-clear articulation, warm natural resonance, no background noise",
+    $("speed").value && `Speaking pace: ${$("speed").value}`,
+    $("pitch").value && `Vocal pitch: ${$("pitch").value}`,
+    $("extraStyle").value.trim(),
+    extraTones && `Delivery notes: ${extraTones}`
+  ].filter(Boolean).join(". ");
+}
+const P = id => PERSONAS.find(p=>p.id===id) || PERSONAS[0];
+const voiceCfg = v => ({voiceConfig:{prebuiltVoiceConfig:{voiceName:v}}});
+
+/* ===== التوليد ===== */
+async function generateSingle(){
+  const sc = cleanScript($("text").value);
+  if(!sc.spoken) throw new Error("اكتب النص الأول.");
+  const p = P(selected);
+  const prompt = `${p.style}. ${perfStyle(sc.tones)}.\nRead only the transcript below aloud, exactly as written, without reading these instructions:\n\nTranscript:\n${sc.spoken}`;
+  const res = await ttsResilient(prompt, voiceCfg(p.voice));
+  return {parts:[toPcm(res)], model:res.model};
+}
+
+function parseDialogue(raw){
+  const names = speakers.map(s=>s.name);
+  const lines=[]; let cur=null;
+  for(const row of raw.split(/\r?\n/)){
+    if(/^\s*(#{1,6}\s|مشهد|المشهد|scene\b)/i.test(row)) continue;
+    const m = row.match(/^\s*([^:：]{1,30})\s*[:：]\s*(.*)$/);
+    if(m && names.includes(m[1].trim())){ cur=m[1].trim(); lines.push({speaker:cur,raw:m[2]}); }
+    else if(row.trim()){ if(!cur) cur=names[0]; lines.push({speaker:cur,raw:row}); }
+  }
+  return lines.map(l=>{const c=cleanLine(l.raw,l.speaker);return {speaker:l.speaker,text:c.spoken,tones:c.tones};}).filter(l=>l.text);
+}
+
+async function generateDialogue(){
+  const lines = parseDialogue($("text").value);
+  if(!lines.length) throw new Error("اكتب الحوار الأول بشكل (الاسم: الكلام).");
+  const byName = n => speakers.find(s=>s.name===n) || speakers[0];
+  const active = [...new Set(lines.map(l=>l.speaker))];
+
+  // محاولة متعددة المتحدثين في طلب واحد (لحد 2)
+  if(active.length===2){
+    try{
+      const a=byName(active[0]), b=byName(active[1]);
+      const pa=P(a.pid), pb=P(b.pid);
+      const alias = {[a.name]:"SpeakerA",[b.name]:"SpeakerB"};
+      const tones = [...new Set(lines.map(l=>l.tones).filter(Boolean))].join(", ");
+      const prompt = `Generate a natural Egyptian Arabic conversation audio between two people. ${perfStyle(tones)}.\n`+
+        `SpeakerA: ${pa.style}.\nSpeakerB: ${pb.style}.\n\nTranscript:\n`+
+        lines.map(l=>`${alias[l.speaker]}: ${l.text}`).join("\n");
+      const cfg = {multiSpeakerVoiceConfig:{speakerVoiceConfigs:[
+        {speaker:"SpeakerA",voiceConfig:{prebuiltVoiceConfig:{voiceName:pa.voice}}},
+        {speaker:"SpeakerB",voiceConfig:{prebuiltVoiceConfig:{voiceName:pb.voice}}}]}};
+      const res = await ttsResilient(prompt,cfg);
+      return {parts:[toPcm(res)], model:res.model};
+    }catch(e){ console.warn("multi-speaker fallback:",e); if(e.quota) throw e; }
+  }
+
+  // سطر بسطر ثم دمج مع وقفة صغيرة
+  const parts=[]; let model="";
+  for(let i=0;i<lines.length;i++){
+    status(`بولّد السطر ${i+1} من ${lines.length}...`);
+    const l=lines[i], p=P(byName(l.speaker).pid);
+    const prompt = `${p.style}. ${perfStyle(l.tones)}.\nRead only the transcript below aloud, exactly as written, without reading these instructions:\n\nTranscript:\n${l.text}`;
+    const res = await ttsResilient(prompt, voiceCfg(p.voice));
+    model=res.model; parts.push(toPcm(res));
+    if(i<lines.length-1) parts.push(silence(220));
+  }
+  return {parts, model};
+}
+
+$("go").onclick = async ()=>{
+  const btn=$("go"); btn.disabled=true; $("player").classList.add("hidden"); $("dl").classList.add("hidden"); $("dlMp3").classList.add("hidden");
+  try{
+    const key = JSON.stringify({mode,t:$("text").value,sel:selected,spk:speakers,s:$("speed").value,p:$("pitch").value,e:$("extraStyle").value});
+    let out, cached=false;
+    if(cache.has(key)){ out=cache.get(key); cached=true; }
+    else{
+      status("بولّد الصوت... ثواني.");
+      out = mode==="dialogue" ? await generateDialogue() : await generateSingle();
+      if(cache.size>=50) cache.delete(cache.keys().next().value);
+      cache.set(key,out);
+    }
+    const blob = makeWav(out.parts);
+    const url = URL.createObjectURL(blob);
+    const pl=$("player"); pl.src=url; pl.classList.remove("hidden"); pl.play().catch(()=>{});
+    $("dl").href=url; $("dl").classList.remove("hidden");
+    lastOut=out; $("dlMp3").classList.remove("hidden");
+    status(cached ? "اتحمّل من الكاش فوراً ✅" : `تم التوليد بنجاح ✅ (${out.model})`,"ok");
+  }catch(e){
+    status(e.quota
+      ? "الحصة المتاحة من Google خلصت (429). جرّب بعد شوية أو استخدم مفتاح تاني. تفاصيل: "+e.message
+      : (e.message||"حصل خطأ أثناء التوليد."),"err");
+  }finally{ btn.disabled=false; }
+};
+
+/* ===== تحسين النص ===== */
+const ENH = {
+  diacritics: t=>`أنت خبير في اللغة العربية واللهجة المصرية. شكّل النص التالي تشكيلاً دقيقاً يناسب النطق الصوتي الطبيعي بنفس اللهجة الموجودة فيه (لا تحوّله إلى فصحى). حافظ على نفس الكلمات تماماً ولا تضف مقدمات. أعد النص المشكول فقط:\n\n${t}`,
+  "vocal-tags": t=>`أنت مخرج صوتي محترف. أضف في أماكن طبيعية جداً من النص التالي وسماً أو اثنين فقط من هذه الوسوم: <breath> <laugh> <gasp> بدون أي تغيير في الكلمات. أعد النص مع الوسوم فقط بلا شرح:\n\n${t}`,
+  masri: t=>`حوّل النص التالي إلى عامية مصرية طبيعية وسلسة تناسب القراءة الصوتية، مع الحفاظ على المعنى. لو فيه صيغة حوار بالشكل (الاسم: الكلام) حافظ عليها. أعد النص فقط بلا شرح:\n\n${t}`
+};
+document.querySelectorAll("[data-enh]").forEach(b=>b.onclick=async()=>{
+  const t=$("text").value.trim(); if(!t){status("اكتب نص الأول.","err");return;}
+  b.disabled=true; status("بحسّن النص...");
+  try{
+    const d = await gem($("textModel").value.trim(),{contents:[{parts:[{text:ENH[b.dataset.enh](t)}]}]});
+    const out = d?.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("").trim();
+    if(out){ $("text").value=out; status("تم تحسين النص ✅","ok"); } else status("الموديل ما رجّعش نص، اتساب النص الأصلي.","err");
+  }catch(e){ status("تعذر تحسين النص، اتساب الأصلي. "+e.message,"err"); }
+  finally{ b.disabled=false; }
+});
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+</script>
+</body>
+</html>
